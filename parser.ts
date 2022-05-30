@@ -34,6 +34,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal<SourceLoca
         value: s.substring(c.from, c.to) === "True",
         a: location,
       }
+    case "DictionaryExpression":
     case "None":
       return {
         tag: "none",
@@ -71,28 +72,38 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
         name: s.substring(c.from, c.to)
       }
     case "CallExpression":
-      const callStr = s.substring(c.from, c.to);
-      const genericRegex = /\[[A-Za-z]*\]/g;
-      const genericArgs = callStr.match(genericRegex);
-
+      let genericTypes = [];
       c.firstChild();
+      if(c.firstChild()) { // focus on name
+        var objExpr = traverseExpr(c, s);
+        c.nextSibling(); // Focus on ( or [
+        var parenOrBracket = s.substring(c.from, c.to);
+        if(parenOrBracket == '[') {
+          c.nextSibling(); // focus on type
+          while(s.substring(c.from, c.to) !== "]") {
+            const type = traverseType(c, s);
+            genericTypes.push(type);
+            c.nextSibling(); // focus on , or ]
+            c.nextSibling(); // focus on type
+          }
+        }
+        c.parent();
+      } 
+
       let callExpr = traverseExpr(c, s);
       c.nextSibling(); // go to arglist
       const args = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
-      if(genericArgs) {
-        const genArgsStr = genericArgs.toString();
-        const commaSepArgs = genArgsStr.substring(1, genArgsStr.length - 1);
-        const genTypes = commaSepArgs.split(',').map(s => typeFromString(s));
+      if(genericTypes.length > 0 && callExpr.tag == "index" && callExpr.obj.tag == "id") {
         return {
           a: location,
           tag: "call",
-          name: callStr.split('[')[0],
+          name: callExpr.obj.name,
           arguments: args,
-          genericArgs: genTypes
+          genericArgs: genericTypes
         };
-      } 
+      }
 
       if (callExpr.tag === "lookup") {
         return {
@@ -748,20 +759,32 @@ export function traverseType(c : TreeCursor, s : string) : Type {
         c.parent(); //up from ArrayExpression
 
         return {tag: "list", type};
-    } else {
-      //object
-      const genericRegex = /\[[A-Za-z]*\]/g;
-      const genericArgs = name.match(genericRegex);
-      if(genericArgs) {
-        const className = name.split('[')[0];
-        const genericNamesStr = genericArgs.toString();
-        const genericNames = genericNamesStr.substring(1, genericNamesStr.length - 1).split(',');
-        const genericTypes = genericNames.map(gn => typeFromString(gn));
-        return CLASS(className, genericTypes);
       } else {
-        return CLASS(name);
-      }
-    }      
+        //object
+        let className = "";
+        let genericArgs = [];
+        if(c.firstChild()) { // focus on name
+          className = s.substring(c.from, c.to);
+          c.nextSibling(); // Focus on ( or [
+          var parenOrBracket = s.substring(c.from, c.to);
+          if(parenOrBracket == '[') {
+            c.nextSibling(); // focus on type
+            while(s.substring(c.from, c.to) !== "]") {
+              const type = traverseType(c, s);
+              genericArgs.push(type);
+              c.nextSibling(); // focus on , or ]
+              c.nextSibling(); // focus on type
+            }
+          }
+          c.parent();
+        } 
+    
+        if(genericArgs.length > 0) {
+          return CLASS(className, genericArgs);
+        } else {
+          return CLASS(name);
+        }
+      }      
   }
 }
 

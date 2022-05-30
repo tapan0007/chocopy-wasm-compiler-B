@@ -51,19 +51,8 @@ export function removeGenerics(ast: Program<SourceLocation>): Program<SourceLoca
         return i;
     }).filter(i => i.type.tag != "type-var");
 
-    // TODO: this is a little hacky for now, only converts constructor calls (ex. Box[int]() -> Box_int()) that are assignments
-    // or field assignments, a better place to do this would be in the typechecker.
     const newStmts = ast.stmts.map(s => {
-        if((s.tag == "assign" || s.tag == "field-assign") && s.value.tag == "call" && classEnv.genericArgs.has(s.value.name)) {
-            let newName = s.value.name;
-            s.value.genericArgs.forEach(ga => {
-                newName += '_' + typeString(ga);
-            })
-
-            const newCall = {...s.value, name: newName};
-            return {...s, value: newCall};
-        }
-        return s;
+        return specializeConstructorsInStmt(s, genericsEnv, classEnv);
     });
 
     const newFuns = ast.funs.map(f => removeGenericsFromFun(f, genericsEnv, classEnv));
@@ -124,6 +113,15 @@ function typeString(type: Type): string {
         return name;
     } else if(type.tag == "either") {
         return typeString(type.left) + "#" + typeString(type.right); 
+    } else if(type.tag == "list") {
+        const name = type.tag + "_" + typeString(type.type);
+        return name;
+    } else if(type.tag == "set") {
+        const name = type.tag + "_" + typeString(type.valueType);
+        return name;
+    } else if(type.tag == "generator") {
+        const name = type.tag + "_" + typeString(type.type);
+        return name;
     } else {
         return type.tag;
     }
@@ -142,6 +140,126 @@ function addSpecializationsForType(type: Type, genericsEnv: GenericEnv, classEnv
             specializations.add(ga);
         }
     });
+}
+
+function specializeConstructorsInStmt(stmt: Stmt<SourceLocation>, genericsEnv: GenericEnv, classEnv: ClassEnv): Stmt<SourceLocation> {
+    switch(stmt.tag) {
+        case "assign": {
+            const newVal = specializeConstructorsInExpr(stmt.value, genericsEnv, classEnv);
+            return {...stmt, value: newVal};
+        }
+        case "assign-destr": {
+            const newRhs = specializeConstructorsInExpr(stmt.rhs, genericsEnv, classEnv);
+            return {...stmt, rhs: newRhs};
+        }
+        case "return": {
+            const newVal = specializeConstructorsInExpr(stmt.value, genericsEnv, classEnv);
+            return {...stmt, value: newVal};
+        }
+        case "expr": {
+            const newExpr = specializeConstructorsInExpr(stmt.expr, genericsEnv, classEnv);
+            return {...stmt, expr: newExpr};
+        }
+        case "field-assign": {
+            const newObj = specializeConstructorsInExpr(stmt.obj, genericsEnv, classEnv);
+            const newVal = specializeConstructorsInExpr(stmt.value, genericsEnv, classEnv);
+            return {...stmt, obj: newObj, value: newVal};
+        }
+        case "index-assign": {
+            const newObj = specializeConstructorsInExpr(stmt.obj, genericsEnv, classEnv);
+            const newVal = specializeConstructorsInExpr(stmt.value, genericsEnv, classEnv);
+            return {...stmt, obj: newObj, value: newVal};
+        }
+        case "if": {
+            const newCond = specializeConstructorsInExpr(stmt.cond, genericsEnv, classEnv);
+            const newThn = stmt.thn.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+            const newEls = stmt.els.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+            return {...stmt, cond: newCond, thn: newThn, els: newEls};
+        }
+        case "while": {
+            const newCond = specializeConstructorsInExpr(stmt.cond, genericsEnv, classEnv);
+            const newBody = stmt.body.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+            return {...stmt, cond: newCond, body: newBody};
+        }
+        case "for" : {
+            const newVars = specializeConstructorsInExpr(stmt.vars, genericsEnv, classEnv);
+            const newIterable = specializeConstructorsInExpr(stmt.iterable, genericsEnv, classEnv);
+            const newBody = stmt.body.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+            let newElseBody = null;
+            if(stmt.elseBody) {
+                newElseBody = stmt.elseBody.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+            }
+            return {...stmt, vars: newVars, iterable: newIterable, body: newBody, elseBody: newElseBody};
+        }
+        default:
+            return stmt;
+    }
+}
+
+function specializeConstructorsInExpr(expr: Expr<SourceLocation>, genericsEnv: GenericEnv, classEnv: ClassEnv): Expr<SourceLocation> {
+    switch(expr.tag) {
+    case "binop":
+        const newLeft = specializeConstructorsInExpr(expr.left, genericsEnv, classEnv);
+        const newRight = specializeConstructorsInExpr(expr.right, genericsEnv, classEnv);
+        return {...expr, left: newLeft, right: newRight};
+    case "uniop":
+        const newExpr = specializeConstructorsInExpr(expr.expr, genericsEnv, classEnv);
+        return {...expr, expr: newExpr};
+    case "call":
+        const newArgs = expr.arguments.map(argExpr => specializeConstructorsInExpr(argExpr, genericsEnv, classEnv));
+        if (classEnv.genericArgs.has(expr.name)) {
+            let newName = expr.name;
+            expr.genericArgs.forEach(ga => {
+                newName += '_' + typeString(ga);
+            })
+
+            return {...expr, name: newName, arguments: newArgs};
+        }
+        return {...expr, arguments: newArgs};
+    case "lookup": {
+        const newObj = specializeConstructorsInExpr(expr.obj, genericsEnv, classEnv);
+        return {...expr, obj: newObj};
+    }
+    case "listliteral":
+        const newElems = expr.elements.map(elem => specializeConstructorsInExpr(elem, genericsEnv, classEnv));
+        return {...expr, elements: newElems};
+    case "index": {
+        const newObj = specializeConstructorsInExpr(expr.obj, genericsEnv, classEnv);
+        const newIdx = specializeConstructorsInExpr(expr.index, genericsEnv, classEnv);
+        return {...expr, obj: newObj, index: newIdx};
+    }
+    case "method-call": {
+        const newObj = specializeConstructorsInExpr(expr.obj, genericsEnv, classEnv);
+        const newArgs = expr.arguments.map(arg => specializeConstructorsInExpr(arg, genericsEnv, classEnv));
+        return {...expr, obj: newObj, arguments: newArgs};
+    }
+    case "set": {
+        const newVals = expr.values.map(val => specializeConstructorsInExpr(val, genericsEnv, classEnv));
+        return {...expr, values: newVals};
+    }
+    case "comprehension": {
+        const newLhs = specializeConstructorsInExpr(expr.lhs, genericsEnv, classEnv);
+        const newIterable = specializeConstructorsInExpr(expr.iterable, genericsEnv, classEnv);
+        let newIfCond = null;
+        if(expr.ifcond) {
+            newIfCond = specializeConstructorsInExpr(expr.ifcond, genericsEnv, classEnv);
+        }
+
+        return {...expr, lhs: newLhs, iterable: newIterable, ifcond: newIfCond};
+    }
+    case "ternary": {
+        const newExprIfTrue = specializeConstructorsInExpr(expr.exprIfTrue, genericsEnv, classEnv);
+        const newIfCond = specializeConstructorsInExpr(expr.ifcond, genericsEnv, classEnv);
+        const newExprIfFalse = specializeConstructorsInExpr(expr.exprIfFalse, genericsEnv, classEnv);
+        return {...expr, exprIfTrue: newExprIfTrue, ifcond: newIfCond, exprIfFalse: newExprIfFalse};
+    }
+    case "non-paren-vals": {
+        const newVals = expr.values.map(val => specializeConstructorsInExpr(val, genericsEnv, classEnv));
+        return {...expr, values: newVals};
+    }
+    default:
+        return expr;
+    }
 }
 
 function removeGenericsFromFun(fun: FunDef<SourceLocation>, genericsEnv: GenericEnv, classEnv: ClassEnv): FunDef<SourceLocation> {
@@ -175,7 +293,9 @@ function removeGenericsFromFun(fun: FunDef<SourceLocation>, genericsEnv: Generic
         newRet = CLASS(specializationName);
     }
 
-    return {...fun, parameters: newParams, ret: newRet, inits: newInits};
+    const newBody = fun.body.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
+
+    return {...fun, parameters: newParams, ret: newRet, inits: newInits, body: newBody};
 }
 
 function removeGenericsFromType(type: Type, variant: Map<string, Type>): Type {
@@ -185,6 +305,12 @@ function removeGenericsFromType(type: Type, variant: Map<string, Type>): Type {
         });
 
         return {...type, genericArgs: newGenericArgs};
+    } else if (type.tag == "list") {
+        const newType = removeGenericsFromType(type.type, variant);
+        return {...type, type: newType};
+    } else if (type.tag == "set") {
+        const newType = removeGenericsFromType(type.valueType, variant);
+        return {...type, valueType: newType};
     } else if (type.tag == "class" && variant.has(type.name)) {
         return variant.get(type.name);
     }
@@ -201,6 +327,17 @@ function addSpecializationsInClass(classDef: Class<SourceLocation>, genericsEnv:
         m.parameters.forEach(p => addSpecializationsForType(p.type, genericsEnv, classEnv));
         addSpecializationsForType(m.ret, genericsEnv, classEnv);
     });
+}
+
+function defaultValue(type: Type, prevVal: Literal<SourceLocation>): Literal<SourceLocation> {
+    let newValue = prevVal;
+    if(type.tag == "number") {
+        newValue = {...newValue, tag: "num", value: 0};
+    } else if (type.tag == "bool") {
+        newValue = {...newValue, tag: "bool", value: false};
+    }
+
+    return newValue;
 }
 
 function specializeClass(classDef: Class<SourceLocation>, genericsEnv: GenericEnv, classEnv: ClassEnv): Array<Class<SourceLocation>> {
@@ -233,11 +370,18 @@ function specializeClass(classDef: Class<SourceLocation>, genericsEnv: GenericEn
         let newName = classDef.name;
         variant.forEach(t => {newName += "_" + typeString(t);});
 
-        // TODO: fields
+        const newFields = classDef.fields.map(field => {
+            const newType = removeGenericsFromType(field.type, variant);
+            const newValue = defaultValue(newType, field.value);
+
+            return {...field, type: newType, value: newValue};
+        });
+
         const newMethods = classDef.methods.map(method => {
             const newInits = method.inits.map(init => {
                 const newType = removeGenericsFromType(init.type, variant);
-                return {...init, type: newType};
+                const newValue = defaultValue(newType, init.value);
+                return {...init, type: newType, value: newValue};
             });
 
             const newParams = method.parameters.map(param => {
@@ -252,7 +396,7 @@ function specializeClass(classDef: Class<SourceLocation>, genericsEnv: GenericEn
 
         // TODO: get rid of Generic parent objects
 
-        return {...classDef, name: newName, methods: newMethods};
+        return {...classDef, name: newName, fields: newFields, methods: newMethods};
     });
 
 

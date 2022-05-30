@@ -1,4 +1,4 @@
-import { assertPrint, assertFail, assertTCFail, assertTC } from "./asserts.test";
+import { assertPrint, assertFail, assertTCFail, assertTC, assertSomeFail } from "./asserts.test";
 import { NUM, BOOL, NONE, CLASS } from "./helpers.test"
 
 describe("Generic tests", () => {
@@ -28,7 +28,7 @@ describe("Generic tests", () => {
   pBool = Printer[bool]()
   pBool.print(True)`, [`10`, `True`]);
 
-  assertTCFail("invalid-specialization", `T: TypeVar = TypeVar('T')
+  assertSomeFail("invalid-specialization", `T: TypeVar = TypeVar('T')
 
   class Box(object):
       val: int = 10
@@ -129,5 +129,135 @@ describe("Generic tests", () => {
   ip = IntPrinterWrapper()
   ip.intPrinter = Printer[int]()
   ip.print_int(10)`, ['10']);
+
+  // ----- Milestone 2 tests ----- //
+
+  assertPrint("simple-generic-field", `
+  T: TypeVar = TypeVar('T')
+
+  class Box(Generic[T]):
+      x: T = {}
+
+  b: Box[int] = None
+  b = Box[int]()
+  print(b.x)`, ['0']);
+
+  assertPrint("two-generic-field-specializations", `
+  T: TypeVar = TypeVar('T')
+  class Box(Generic[T]):
+      x: T = {}
+
+  b0: Box[int] = None
+  b1: Box[bool] = None
+  b0 = Box[int]()
+  print(b0.x)
+
+  b1 = Box[bool]()
+  print(b1.x)`, ['0', 'False']);
+
+  assertSomeFail("invalid-field-specialization", `
+  T: TypeVar = TypeVar('T')
+
+  class Box(Generic[T]):
+      x: T = {}
+
+  class Thing(object):
+      v: int = 0
+
+  b: Box[Thing] = None
+  b = Box[Thing]()
+  print(b.x)`);
+
+  assertPrint("valid-field-binop", `
+  T: TypeVar = TypeVar('T')
+
+  class Adder(Generic[T]):
+      x: T = {}
+      y: T = {}
+      def new(self: Adder[T], x: T, y: T) -> Adder[T]:
+          self.x = x
+          self.y = y
+          return self
+
+      def add(self: Adder[T]) -> T:
+        return self.x + self.y
+
+  a: Adder[int] = None
+  a = Adder[int]()
+  a = a.new(1, 2)
+  print(a.add())`, ['3']);
+
+  assertTCFail("invalid-field-binop", `
+  T: TypeVar = TypeVar('T')
+
+  class Adder(Generic[T]):
+      x: T = {}
+      y: T = {}
+      def new(self: Adder[T], x: T, y: T) -> Adder[T]:
+          self.x = x
+          self.y = y
+          return self
+
+      def add(self: Adder[T]) -> T:
+        return self.x + self.y
+
+  a: Adder[bool] = None
+  a = Adder[bool]()
+  a = a.new(False, True)
+  print(a.add())`);
+
+  assertTCFail("invalid-field-assign", `
+  T: TypeVar = TypeVar('T')
+  class Box(Generic[T]):
+      x: T = {}
+
+  b: Box[int] = None
+  b = Box[int]()
+  b.x = False`);
+
+  assertPrint("two-typevars", `
+  T: TypeVar = TypeVar('T')
+  U: TypeVar = TypeVar('U')
+  class Box(Generic[T, U]):
+      x: T = {}
+      y: U = {}
+
+  b: Box[int,bool] = None
+  b = Box[int,bool]()
+  print(b.x)
+  print(b.y)`, ['0', 'False']);
+
+  assertPrint("ctor-in-function", `
+  T: TypeVar = TypeVar('T')
+  class Box(Generic[T]):
+      x: T = {}
+
+  def create_box() -> Box[int]:
+      return Box[int]()
+
+  b: Box[int] = None
+  b = create_box()
+  print(b.x)`, ['0']);
+
+  assertTCFail("invalid-typevar-in-class", `
+  T: TypeVar = TypeVar('T')
+  U: TypeVar = TypeVar('U')
+  class Box(Generic[T]):
+      val: U = {}
+      
+  x: Box[int] = None
+  x.val = 0`);
+
+  assertPrint("lists-as-generics", `
+  T: TypeVar = TypeVar('T')
+
+  class Box(Generic[T]):
+    x: T = {}
+
+  b: Box[[int]] = None
+  b = Box[[int]]()
+  b.x = [0, 1, 2]
+  print(b.x[1])
+  `, ["1"]);
 
 });

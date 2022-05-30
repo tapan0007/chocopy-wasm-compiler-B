@@ -49,6 +49,17 @@ export function assertFail(name: string, source: string) {
   });
 }
 
+// Assert an error gets thrown at runtime
+export function assertSomeFail(name: string, source: string) {
+  it(name, async () => {
+    try {
+      await run(source);
+      fail("Expected an exception");
+    } catch (err) {
+    }
+  });
+}
+
 
 export function assertPrint(name: string, source: string, expected: Array<string>) {
   it(name, async () => {

@@ -227,7 +227,7 @@ export function tcInit(env: GlobalTypeEnv, init : VarInit<SourceLocation>) : Var
   if (isAssignable(env, tcVal.a[0], init.type)) {
     return {...init, a: [NONE, init.a], value: tcVal};
   } else {
-    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + tcVal.a[0] + "`", init.a);
+    throw new TypeCheckError("Expected type `" + init.type.tag + "`; got type `" + tcVal.a[0].tag + "`", init.a);
   }
 }
 
