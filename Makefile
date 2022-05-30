@@ -1,4 +1,3 @@
-
 stdlib: build/memory.wasm build/sets.wasm
 
 build/%.wasm: stdlib/%.wat

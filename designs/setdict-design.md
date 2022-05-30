@@ -7,9 +7,9 @@ There are two main goals we want to achieve in the remaining work:
 
 ### About the set functionalities: 
 
-In Week 7, we implemented some of the basic functionalities of sets, including the initialization, len(set), set.add(), set.remove(), the "in" keyword, etc. We proposed some different test cases because we didn't implement a print_set() function. ~~We are also trying to move all the set-related functions into a new file called sets.wat under the /stdlib directory, and build it into sets.wasm to load all the functions into the code. There's still a bug left in our code such that it failed local tests but behaved normally when running in the browser. So in this pull request, in order to pass the local tests without any error, we put the set-related wasm code in the memory.wat temporarily.~~ So our first two tasks are to fix these two problems. **UPDATE: The second problem was fixed.** 
+In Week 7, we implemented some of the basic functionalities of sets, including the initialization, len(set), set.add(), set.remove(), the "in" keyword, etc. ~~We proposed some different test cases because we didn't implement a print_set() function.~~  ~~We are also trying to move all the set-related functions into a new file called sets.wat under the /stdlib directory, and build it into sets.wasm to load all the functions into the code. There's still a bug left in our code such that it failed local tests but behaved normally when running in the browser. So in this pull request, in order to pass the local tests without any error, we put the set-related wasm code in the memory.wat temporarily.~~ So our first two tasks are to fix these two problems. **UPDATE: The second problem was fixed.**   **UPDATE2: The first problem was also fixed.**  
 
-Next, our goal is to implement all the remaining set functionalities. We wish to implement set.update() and set.clear(), as well as throwing runtime error when removing non-existing elements from sets. We will be able to pass all test cases we originally proposed once we finish implementing all these tasks.
+Next, our goal is to implement all the remaining set functionalities. ~~We wish to implement set.update(),~~ as well as collaborating with the error-reporting group to throw runtime error when removing non-existing elements from sets. We will be able to pass all test cases we originally proposed once we finish implementing all these tasks. **Update: set.update() was implemented.** 
 
 ### About integrating our work with other groups:
 Currently our set can only store primitive types. We want to extend our implementation to be able to store strings and bignums in the sets. Possible scenarios are as follows:
@@ -43,7 +43,7 @@ set_1.update("xy")
 print(set_1)   # output {"a", "b", "c", "x", "y"}
 ```
 
-2. Constructing and updating sets using lists
+2. Constructing and updating sets using lists **Update: This test case was passed.** 
 ```python
 set_1 : set[int] = None
 set_1 = set([1,1,2])
