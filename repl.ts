@@ -65,11 +65,7 @@ export class BasicREPL {
 
   trackObject(result: Value, heapView: Int32Array): Array<ObjectField>{
     let list = new Array<ObjectField>();
-<<<<<<< HEAD
     if(result.tag === "bool" || result.tag === "none" || result.tag === "num" || result.tag === "TypeVar"){
-=======
-    if(result.tag === "bool" || result.tag === "none" || result.tag === "num" || result.tag === "TypeVar" || result.tag === "str"){
->>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
       return list;
     }
 

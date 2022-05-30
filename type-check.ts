@@ -6,12 +6,11 @@ import { emptyEnv } from './compiler';
 import { TypeCheckError } from './error_reporting'
 import { BuiltinLib } from './builtinlib';
 import exp from 'constants';
-import { json } from 'stream/consumers';
 import { listenerCount } from 'process';
 import { IgnorePlugin } from 'webpack';
 
-const compvars: Map<string, [string, number]> = new Map();
-function generateCompvar(base: string): string {
+const compvars : Map<string, [string, number]> = new Map();
+function generateCompvar(base : string) : string {
   const compbase = `compvar$${base}`;
   if (compvars.has(compbase)) {
     var cur = compvars.get(compbase)[1];
@@ -24,7 +23,7 @@ function generateCompvar(base: string): string {
     return newName;
   }
 }
-function retrieveCompvar(base: string): string {
+function retrieveCompvar(base : string) : string {
   const compbase = `compvar$${base}`;
   if (compvars.has(compbase)) {
     return compvars.get(compbase)[0];
@@ -49,7 +48,7 @@ export type LocalTypeEnv = {
 }
 
 const defaultGlobalFunctions = new Map();
-BuiltinLib.forEach(x => {
+BuiltinLib.forEach(x=>{
   defaultGlobalFunctions.set(x.name, x.typeSig);
 })
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
@@ -60,7 +59,7 @@ export const defaultTypeEnv = {
   classes: new Map(),
 };
 
-export function emptyGlobalTypeEnv(): GlobalTypeEnv {
+export function emptyGlobalTypeEnv() : GlobalTypeEnv {
   return {
     globals: new Map(),
     functions: new Map(),
@@ -68,7 +67,7 @@ export function emptyGlobalTypeEnv(): GlobalTypeEnv {
   };
 }
 
-export function emptyLocalTypeEnv(): LocalTypeEnv {
+export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
     expectedRet: NONE,
@@ -87,19 +86,17 @@ export function equalType(t1: Type, t2: Type): boolean {
   return (
     t1 === t2 ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
-    (t1.tag === "number" && t2.tag === "number") || (t1.tag === "bool" && t2.tag === "bool") ||
-    (t1.tag === "none" && t2.tag === "none") ||
-    (t1.tag === "set" && t2.tag == "set") ||
+    (t1.tag === "set" && t2.tag == "set") || 
     (t1.tag === "list" && t2.tag === "list" && (equalType(t1.type, t2.type) || t1.type === NONE)) ||
     (t1.tag === "generator" && t2.tag === "generator" && equalType(t1.type, t2.type))
   );
 }
 
-export function isNoneOrClass(t: Type): boolean {
+export function isNoneOrClass(t: Type) : boolean {
   return t.tag === "none" || t.tag === "class" || t.tag === "generator";
 }
 
-export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type) : boolean {
   return (
     equalType(t1, t2) ||
     (t1.tag === "none" && t2.tag === "class") ||
@@ -113,11 +110,11 @@ export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
   );
 }
 // t1: assignment value type, t2: expected type
-export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+export function isAssignable(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolean {
   return isSubtype(env, t1, t2);
 }
 
-export function isIterable(env: GlobalTypeEnv, t1: Type): [Boolean, Type] {
+export function isIterable(env: GlobalTypeEnv, t1: Type) : [Boolean, Type] {
   // check if t is an iterable type
   // if true, also return type of each item in the iterable
   switch (t1.tag) {
@@ -127,7 +124,7 @@ export function isIterable(env: GlobalTypeEnv, t1: Type): [Boolean, Type] {
       // check if class has next and hasnext method
       // need to talk to for-loop group
       var classMethods = env.classes.get(t1.name)[1];
-      if (!(classMethods.has("next") && classMethods.has("hasnext"))) {
+      if(!(classMethods.has("next") && classMethods.has("hasnext"))) {
         return [false, undefined];
       }
       return [true, classMethods.get("next")[1]];
@@ -148,26 +145,26 @@ export function isIterable(env: GlobalTypeEnv, t1: Type): [Boolean, Type] {
 export function isCompType(t: Type): Boolean {
   switch (t.tag) {
     case "generator":
-      // case "list":
-      // case "set":
-      // case "dictionary":
+    // case "list":
+    // case "set":
+    // case "dictionary":
       return true;
     default:
       return false;
   }
 }
 
-export function join(env: GlobalTypeEnv, t1: Type, t2: Type): Type {
+export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
   return NONE
 }
 
-export function isIterableObject(env: GlobalTypeEnv, t1: Type): boolean {
-  if (t1.tag !== "class")
+export function isIterableObject(env : GlobalTypeEnv, t1 : Type) : boolean {
+  if(t1.tag !== "class")
     return false;
   var classMethods = env.classes.get(t1.name)[1];
-  if (!(classMethods.has("next") && classMethods.has("hasnext")))
+  if(!(classMethods.has("next") && classMethods.has("hasnext")))
     return false;
-  if (equalType(classMethods.get("next")[1], NONE) || !equalType(classMethods.get("hasnext")[1], BOOL))
+  if(equalType(classMethods.get("next")[1], NONE) || !equalType(classMethods.get("hasnext")[1], BOOL))
     return false;
   return true;
 }
@@ -182,16 +179,6 @@ export function convertToIterableObject(env : GlobalTypeEnv, iterable: Expr<[Typ
   return iterable;
 }
 
-export function builtinStringClass(env: GlobalTypeEnv): GlobalTypeEnv {
-  var strFields: Map<string, Type> = new Map();
-  var strMethods: Map<string, [Array<Type>, Type]> = new Map();
-  strMethods.set("__init__", [[{ tag: "class", name: "str" }, { tag: "class", name: "str" }], NONE])
-  strMethods.set("length", [[{ tag: "class", name: "str" }], NUM])
-  //TODO add all string methods here
-  strFields.set("length", { tag: "number" });
-  env.classes.set("str", [strFields, strMethods]);
-  return env;
-}
 
 export function augmentTEnv(env : GlobalTypeEnv, program : Program<SourceLocation>) : GlobalTypeEnv {
   const newGlobs = new Map(env.globals);
@@ -206,12 +193,10 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<SourceLocatio
     cls.methods.forEach(method => methods.set(method.name, [method.parameters.map(p => p.type), method.ret]));
     newClasses.set(cls.name, [fields, methods]);
   });
-  var env = { globals: newGlobs, functions: newFuns, classes: newClasses };
-  env = builtinStringClass(env); //add str class
-  return env;
+  return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
-export function tc(env: GlobalTypeEnv, program: Program<SourceLocation>): [Program<[Type, SourceLocation]>, GlobalTypeEnv] {
+export function tc(env : GlobalTypeEnv, program : Program<SourceLocation>) : [Program<[Type, SourceLocation]>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map(init => tcInit(env, init));
@@ -224,8 +209,8 @@ export function tc(env: GlobalTypeEnv, program: Program<SourceLocation>): [Progr
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
   const tBody = tcBlock(newEnv, locals, program.stmts);
-  var lastTyp: Type = NONE;
-  if (tBody.length) {
+  var lastTyp : Type = NONE;
+  if (tBody.length){
     lastTyp = tBody[tBody.length - 1].a[0];
   }
   // TODO(joe): check for assignment in existing env vs. new declaration
@@ -233,20 +218,20 @@ export function tc(env: GlobalTypeEnv, program: Program<SourceLocation>): [Progr
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram: Program<[Type, SourceLocation]> = { a: [lastTyp, program.a], inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
+  const aprogram: Program<[Type, SourceLocation]> = {a: [lastTyp, program.a], inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody};
   return [aprogram, newEnv];
 }
 
-export function tcInit(env: GlobalTypeEnv, init: VarInit<SourceLocation>): VarInit<[Type, SourceLocation]> {
+export function tcInit(env: GlobalTypeEnv, init : VarInit<SourceLocation>) : VarInit<[Type, SourceLocation]> {
   const tcVal = tcLiteral(init.value);
   if (isAssignable(env, tcVal.a[0], init.type)) {
-    return { ...init, a: [NONE, init.a], value: tcVal };
+    return {...init, a: [NONE, init.a], value: tcVal};
   } else {
     throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + tcVal.a[0] + "`", init.a);
   }
 }
 
-export function tcDef(env: GlobalTypeEnv, fun: FunDef<SourceLocation>): FunDef<[Type, SourceLocation]> {
+export function tcDef(env : GlobalTypeEnv, fun : FunDef<SourceLocation>) : FunDef<[Type, SourceLocation]> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
@@ -257,34 +242,35 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<SourceLocation>): FunDef<[
     tcinits.push(tcinit);
     locals.vars.set(init.name, tcinit.type);
   });
-
+  
   const tBody = tcBlock(env, locals, fun.body);
   if (!isAssignable(env, locals.actualRet, locals.expectedRet))
     throw new TypeCheckError(`expected return type of block: ${JSON.stringify(locals.expectedRet)} does not match actual return type: ${JSON.stringify(locals.actualRet)}`, fun.a);
-  return { ...fun, a: [NONE, fun.a], body: tBody, inits: tcinits };
+  return {...fun, a:[NONE, fun.a], body: tBody, inits: tcinits};
 }
 
-export function tcClass(env: GlobalTypeEnv, cls: Class<SourceLocation>): Class<[Type, SourceLocation]> {
+export function tcClass(env: GlobalTypeEnv, cls : Class<SourceLocation>) : Class<[Type, SourceLocation]> {
   const tFields = cls.fields.map(field => tcInit(env, field));
   const tMethods = cls.methods.map(method => tcDef(env, method));
   const init = cls.methods.find(method => method.name === "__init__") // we'll always find __init__
-  if (init.parameters.length !== 1 ||
+  if (init.parameters.length !== 1 || 
     init.parameters[0].name !== "self" ||
     !equalType(init.parameters[0].type, CLASS(cls.name)) ||
     init.ret !== NONE)
     throw new TypeCheckError("Cannot override __init__ type signature", cls.a);
-  return { a: [NONE, cls.a], name: cls.name, generics: cls.generics, fields: tFields, methods: tMethods };
+  return {a: [NONE, cls.a], name: cls.name, generics: cls.generics, fields: tFields, methods: tMethods};
 }
 
-export function tcBlock(env: GlobalTypeEnv, locals: LocalTypeEnv, stmts: Array<Stmt<SourceLocation>>): Array<Stmt<[Type, SourceLocation]>> {
+export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt<SourceLocation>>) : Array<Stmt<[Type, SourceLocation]>> {
   var tStmts = stmts.map(stmt => tcStmt(env, locals, stmt));
   return tStmts;
 }
 
-export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<SourceLocation>): Stmt<[Type, SourceLocation]> {
-  switch (stmt.tag) {
+export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<SourceLocation>) : Stmt<[Type, SourceLocation]> {
+  switch(stmt.tag) {
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
+      console.log(tValExpr)
       var nameTyp;
       if (locals.vars.has(stmt.name)) {
         nameTyp = locals.vars.get(stmt.name);
@@ -380,10 +366,6 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<Sour
       var tObj = tcExpr(env, locals, stmt.obj);
       var tIndex = tcExpr(env, locals, stmt.index);
       var tVal = tcExpr(env, locals, stmt.value);
-      if (equalType(tObj.a[0], CLASS("str"))) {
-        throw new TypeCheckError("string is immutable", stmt.a)
-
-      }
       if (tIndex.a[0].tag != "number") {
         // if (tObj.a[0].tag === "dict") {
         //   ...
@@ -617,100 +599,79 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
       let tc_val = expr.values.map((e) => tcExpr(env, locals, e));
       let tc_type = tc_val.map((e) => e.a[0]);
       let set_type = new Set<Type>();
-      tc_type.forEach(t => {
+      tc_type.forEach(t=>{
         set_type.add(t)
       });
-      if (set_type.size > 1) {
+      if (set_type.size > 1){
         throw new TypeCheckError("Bracket attribute error")
       }
-      var t: Type = { tag: "set", valueType: tc_type[0] };
+      var t: Type ={tag: "set", valueType: tc_type[0]};
       var a: SourceLocation = expr.a;
       // return {...expr, a: [t, a]};
-      return { ...expr, a: [t, a], values: tc_val };
-    case "literal":
-      const tcVal: Literal<[Type, SourceLocation]> = tcLiteral(expr.value)
-      return { ...expr, a: [tcVal.a[0], expr.a], value: tcVal };
+      return {...expr, a: [t, a], values: tc_val};
+    case "literal": 
+      const tcVal : Literal<[Type, SourceLocation]> = tcLiteral(expr.value)
+      return {...expr, a: [tcVal.a[0], expr.a], value: tcVal};
     case "binop":
       const tLeft = tcExpr(env, locals, expr.left);
       const tRight = tcExpr(env, locals, expr.right);
-      const tBin = { ...expr, left: tLeft, right: tRight };
-      switch (expr.op) {
-        case BinOp.Plus: //equalType
-          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return { ...tBin, a: [NUM, expr.a] } }
-          if (equalType(tLeft.a[0], CLASS("str")) &&
-            equalType(tRight.a[0], CLASS("str"))) {
-            return { a: [{ tag: "class", name: "str" }, expr.a], tag: "method-call", obj: tLeft, method: "concat", arguments: [tRight] }
-          }
+      const tBin = {...expr, left: tLeft, right: tRight};
+      switch(expr.op) {
+        case BinOp.Plus:
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return { ...tBin, a: [NUM, expr.a] } }
+          if(equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return {...tBin, a: [NUM, expr.a]}}
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op, expr.a); }
         case BinOp.Eq:
-          if (equalType(tLeft.a[0], CLASS("str")) &&
-            equalType(tRight.a[0], CLASS("str"))) {
-            return { a: [BOOL, expr.a], tag: "method-call", obj: tLeft, method: "equalsto", arguments: [tRight] }
-          }
-
         case BinOp.Neq:
-          if (tLeft.a[0].tag === "class" || tRight.a[0].tag === "class") throw new TypeCheckError("cannot apply operator '==' on class types", expr.a)
-          if (equalType(tLeft.a[0], tRight.a[0])) { return { ...tBin, a: [BOOL, expr.a] }; }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a); }
+          if(tLeft.a[0].tag === "class" || tRight.a[0].tag === "class") throw new TypeCheckError("cannot apply operator '==' on class types", expr.a)
+          if(equalType(tLeft.a[0], tRight.a[0])) { return {...tBin, a: [BOOL, expr.a]} ; }
+          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a);}
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
-          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return { ...tBin, a: [BOOL, expr.a] } }
-          if (equalType(tLeft.a[0], CLASS("str")) &&
-            equalType(tRight.a[0], CLASS("str"))) {
-            return { a: [BOOL, expr.a], tag: "method-call", obj: tLeft, method: "lessthan", arguments: [tRight] }
-          }
-
         case BinOp.Gt:
-          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return { ...tBin, a: [BOOL, expr.a] } }
-          if (equalType(tLeft.a[0], CLASS("str")) &&
-            equalType(tRight.a[0], CLASS("str"))) {
-            return { a: [BOOL, expr.a], tag: "method-call", obj: tLeft, method: "greaterthan", arguments: [tRight] }
-          }
-          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return { ...tBin, a: [BOOL, expr.a] }; }
+          if(equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) { return {...tBin, a: [BOOL, expr.a]} ; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a); }
         case BinOp.And:
         case BinOp.Or:
-          if (equalType(tLeft.a[0], BOOL) && equalType(tRight.a[0], BOOL)) { return { ...tBin, a: [BOOL, expr.a] }; }
+          if(equalType(tLeft.a[0], BOOL) && equalType(tRight.a[0], BOOL)) { return {...tBin, a: [BOOL, expr.a]} ; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op, expr.a); }
         case BinOp.Is:
-          if (!isNoneOrClass(tLeft.a[0]) || !isNoneOrClass(tRight.a[0]))
+          if(!isNoneOrClass(tLeft.a[0]) || !isNoneOrClass(tRight.a[0]))
             throw new TypeCheckError("is operands must be objects", expr.a);
-          return { ...tBin, a: [BOOL, expr.a] };
+          return {...tBin, a: [BOOL, expr.a]};
       }
     case "uniop":
       const tExpr = tcExpr(env, locals, expr.expr);
-      const tUni = { ...expr, a: tExpr.a, expr: tExpr }
-      switch (expr.op) {
+      const tUni = {...expr, a: tExpr.a, expr: tExpr}
+      switch(expr.op) {
         case UniOp.Neg:
-          if (equalType(tExpr.a[0], NUM)) { return tUni }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a); }
+          if(equalType(tExpr.a[0], NUM)) { return tUni }
+          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a);}
         case UniOp.Not:
-          if (equalType(tExpr.a[0], BOOL)) { return tUni }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a); }
+          if(equalType(tExpr.a[0], BOOL)) { return tUni }
+          else { throw new TypeCheckError("Type mismatch for op" + expr.op, expr.a);}
       }
     case "id":
       // check if id is used for comprehension
       const compvarName = retrieveCompvar(expr.name);
       if (env.globals.has(compvarName)) {
-        return { ...expr, a: [env.globals.get(compvarName), expr.a], name: compvarName };
+        return {...expr, a: [env.globals.get(compvarName), expr.a], name: compvarName};
       }
       if (locals.vars.has(expr.name)) {
-        return { ...expr, a: [locals.vars.get(expr.name), expr.a] };
+        return {...expr, a: [locals.vars.get(expr.name), expr.a]};
       } else if (env.globals.has(expr.name)) {
-        return { ...expr, a: [env.globals.get(expr.name), expr.a] };
+        return {...expr, a: [env.globals.get(expr.name), expr.a]};
       } else {
         throw new TypeCheckError("Unbound id: " + expr.name, expr.a);
       }
     case "listliteral":
-      if (expr.elements.length == 0) {
+      if(expr.elements.length == 0) {
         const elements: Expr<[Type, SourceLocation]>[] = [];
-        return { ...expr, elements, a: [{ tag: "list", type: NONE }, expr.a] };
+        return {...expr, elements, a: [{tag: "list", type: NONE}, expr.a]};
       }
 
       const elementsWithTypes: Array<Expr<[Type, SourceLocation]>> = [];
@@ -721,20 +682,20 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
 
       //check that all other elements have the same type as the first element
       //TODO: account for the case where the first element could be None and the rest are objects of some class
-      for (let i = 1; i < expr.elements.length; i++) {
+      for(let i = 1; i < expr.elements.length; i++) {
         const checkedI = tcExpr(env, locals, expr.elements[i]);
         const elementType = checkedI.a[0];
 
         //TODO: make error message better, use the name of the class if it's an object
         //also update condition to account for subtypes
-        if (!isAssignable(env, elementType, proposedType)) {
+        if(!isAssignable(env, elementType, proposedType)) {
           throw new TypeError("List has incompatible types: " + elementType.tag + " and " + proposedType.tag);
         }
 
         elementsWithTypes.push(checkedI); //add expression w/ type annotation to new elements list
       }
 
-      return { ...expr, elements: elementsWithTypes, a: [{ tag: "list", type: proposedType }, expr.a] };
+      return {...expr, elements: elementsWithTypes, a: [{tag: "list", type: proposedType}, expr.a]};
     case "index":
       var tObj: Expr<[Type, SourceLocation]> = tcExpr(env, locals, expr.obj);
       var tIndex: Expr<[Type, SourceLocation]> = tcExpr(env, locals, expr.index);
@@ -744,11 +705,11 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
         // }
         throw new TypeCheckError(`Index is of non-integer type \`${tIndex.a[0].tag}\``);
       }
-      if (equalType(tObj.a[0], CLASS("str"))) {
-        return { a: [CLASS("str"), expr.a], tag: "index", obj: tObj, index: tIndex };
-      }
+      // if (equalType(tObj.a[0], CLASS("str"))) {
+      //   return { a: [{ tag: "class", name: "str" }, expr.a], tag: "index", obj: tObj, index: tIndex };
+      // }
       if (tObj.a[0].tag === "list") {
-        return { ...expr, a: [tObj.a[0].type, expr.a], obj: tObj, index: tIndex };
+        return { ...expr, a: [tObj.a[0].type, expr.a], obj: tObj, index: tIndex }; 
       }
       // if (tObj.a[0].tag === "tuple") {
       //   ...
@@ -756,39 +717,27 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
       throw new TypeCheckError(`Cannot index into type \`${tObj.a[0].tag}\``); // Can only index into strings, list, dicts, and tuples
     case "call":
       if (expr.name === "print") {
-        if (expr.arguments.length === 0)
+        if (expr.arguments.length===0)
           throw new TypeCheckError("print needs at least 1 argument");
         const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
-        return { ...expr, a: [NONE, expr.a], arguments: tArgs };
-      }
-      if (env.classes.has(expr.name)) {
+        return {...expr, a: [NONE, expr.a], arguments: tArgs};
+      } 
+      if(env.classes.has(expr.name)) {
         // surprise surprise this is actually a constructor
-
-        const tConstruct: Expr<[Type, SourceLocation]> = { a: [CLASS(expr.name), expr.a], tag: "construct", name: expr.name };
-        if (expr.name == "str" && expr.arguments[0].tag == "literal") {
-          if (expr.arguments[0].value.tag != "str") {
-            throw new TypeError("Initializing string with non string literal");
-          }
-          tConstruct.strarg = expr.arguments[0].value.value;
-        }
-
-        //To support range class for now
-        if (expr.name === "range") {
-          return tConstruct;
-        }
+        const tConstruct : Expr<[Type, SourceLocation]> = { a: [CLASS(expr.name), expr.a], tag: "construct", name: expr.name };
 
         const [_, methods] = env.classes.get(expr.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
           if (expr.arguments.length !== initArgs.length - 1)
             throw new TypeCheckError("__init__ didn't receive the correct number of arguments from the constructor", expr.a);
-          if (initRet !== NONE)
+          if (initRet !== NONE) 
             throw new TypeCheckError("__init__  must have a void return type", expr.a);
           return tConstruct;
         } else {
           return tConstruct;
         }
-      } else if (env.functions.has(expr.name)) {
+      } else if(env.functions.has(expr.name)) {
         const [argTypes, retType] = env.functions.get(expr.name);
         const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
         console.log(tArgs);
@@ -835,9 +784,9 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
         if (env.classes.has(tObj.a[0].name)) {
           const [fields, _] = env.classes.get(tObj.a[0].name);
           if (fields.has(expr.field)) {
-            return { ...expr, a: [fields.get(expr.field), expr.a], obj: tObj };
+            return {...expr, a: [fields.get(expr.field), expr.a], obj: tObj};
           } else {
-            throw new TypeCheckError(`could not find field ${expr.field} in class ${tObj.a[0].name}`, expr.a);
+            throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a[0].name}`, expr.a);
           }
         } else {
           throw new TypeCheckError("field lookup on an unknown class", expr.a);
@@ -854,43 +803,43 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
           if (methods.has(expr.method)) {
             const [methodArgs, methodRet] = methods.get(expr.method);
             const realArgs = [tObj].concat(tArgs);
-            if (methodArgs.length === realArgs.length &&
+            if(methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))) {
-              return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
-            } else {
-              throw new TypeCheckError(`Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(realArgs)}, methodArgs: ${JSON.stringify(methodArgs)}`, expr.a);
-            }
+                return {...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs};
+              } else {
+               throw new TypeCheckError(`Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(realArgs)}, methodArgs: ${JSON.stringify(methodArgs)}`, expr.a );
+              }
           } else {
-            throw new TypeCheckError(`could not find method ${expr.method} in class ${tObj.a[0].name}`, expr.a);
+            throw new TypeCheckError(`could not found method ${expr.method} in class ${tObj.a[0].name}`, expr.a);
           }
         } else {
           throw new TypeCheckError("method call on an unknown class", expr.a);
         }
-      } else if (tObj.a[0].tag === 'set') {
+      } else if (tObj.a[0].tag === 'set'){
         const set_method = ["add", "remove", "get", "contains", "length"]
-        if (set_method.includes(expr.method)) {
+        if (set_method.includes(expr.method)){
           tArgs.forEach(t => {
-            if (t.tag === "literal" && tObj.a[0].tag === 'set') {
-              if (t.value.a[0] !== tObj.a[0].valueType) {
+            if (t.tag === "literal"&&tObj.a[0].tag === 'set'){
+              if (t.value.a[0] !== tObj.a[0].valueType){
                 throw new TypeCheckError("Mismatched Type when calling method")
               }
-            } else {
+            }else{
               throw new TypeCheckError("Unknown Type when calling method")
             }
           })
-        } else {
+        }else{
           throw new TypeCheckError("Unknown Set Method Error");
         }
-        if (expr.method === "contains") {
-          return { ...expr, a: [BOOL, expr.a], obj: tObj, arguments: tArgs };
-        } else if (expr.method === "add") {
-          return { ...expr, a: [NONE, expr.a], obj: tObj, arguments: tArgs };
-        } else if (expr.method === "remove") {
-          return { ...expr, a: [NONE, expr.a], obj: tObj, arguments: tArgs };
-        } else if (expr.method === "length") {
-          return { ...expr, a: [NUM, expr.a], obj: tObj, arguments: tArgs };
+        if (expr.method === "contains"){
+          return {...expr, a: [BOOL, expr.a], obj: tObj, arguments: tArgs};
+        }else if(expr.method === "add"){
+          return {...expr, a: [NONE, expr.a], obj: tObj, arguments: tArgs};
+        }else if(expr.method === "remove"){
+          return {...expr, a: [NONE, expr.a], obj: tObj, arguments: tArgs};
+        } else if(expr.method === "length"){
+          return {...expr, a: [NUM, expr.a], obj: tObj, arguments: tArgs};
         }
-        return { ...expr, a: tObj.a, obj: tObj, arguments: tArgs }
+        return {...expr, a:tObj.a, obj: tObj, arguments: tArgs}
       } else {
         throw new TypeCheckError("method calls require an object", expr.a);
       }
@@ -906,7 +855,7 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
       if (equalType(exprIfTrueTyp, exprIfFalseTyp)) {
         return { ...expr, a: [exprIfTrueTyp, expr.a], exprIfTrue: tExprIfTrue, ifcond: tIfCond, exprIfFalse: tExprIfFalse };
       }
-      const eitherTyp: Type = { tag: "either", left: exprIfTrueTyp, right: exprIfFalseTyp };
+      const eitherTyp : Type = { tag: "either", left: exprIfTrueTyp, right: exprIfFalseTyp };
       return { ...expr, a: [eitherTyp, expr.a], exprIfTrue: tExprIfTrue, ifcond: tIfCond, exprIfFalse: tExprIfFalse };
     case "comprehension":
       const tIterable = tcExpr(env, locals, expr.iterable);
@@ -926,7 +875,7 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
       }
       const tLhs = tcExpr(env, locals, expr.lhs);
       // TODO: need to talk to the other groups
-      if (expr.type.tag == "generator"
+      if (expr.type.tag == "generator" 
         || expr.type.tag == "list"
       ) {
         expr.type = { ...(expr.type), type: itemTyp };
@@ -948,22 +897,19 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
   }
 }
 
-export function tcLiteral(literal: Literal<SourceLocation>): Literal<[Type, SourceLocation]> {
-  var typ: Type;
-  switch (literal.tag) {
-    case "bool":
+export function tcLiteral(literal : Literal<SourceLocation>) : Literal<[Type, SourceLocation]> {
+  var typ : Type;
+  switch(literal.tag) {
+    case "bool": 
       typ = BOOL;
       break;
-    case "num":
-      typ = NUM;
+    case "num": 
+      typ =  NUM;
       break;
-    case "none":
-      typ = NONE;
-      break;
-    case "str":
-      typ = CLASS("str");
+    case "none": 
+      typ =  NONE;
       break;
     default: throw new Error(`unknown type: ${literal.tag}`)
   }
-  return { ...literal, a: [typ, literal.a] }
+  return {...literal, a: [typ, literal.a]}
 }

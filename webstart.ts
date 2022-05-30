@@ -1,11 +1,7 @@
 import { BasicREPL} from './repl';
 import { Type, Value } from './ast';
 import { defaultTypeEnv } from './type-check';
-<<<<<<< HEAD
 import { NUM, BOOL, NONE } from './utils';
-=======
-import { NUM, BOOL, NONE, CLASS } from './utils';
->>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
 import * as RUNTIME_ERROR from './runtime_error'
 import { renderResult, renderError, renderPrint } from "./outputrender";
 import { log } from 'console';
@@ -47,18 +43,11 @@ function webStart() {
         division_by_zero: (arg: number, line: number, col: number) => RUNTIME_ERROR.division_by_zero(arg, line, col),
         stack_push: (line: number) => RUNTIME_ERROR.stack_push(line),
         stack_clear: () => RUNTIME_ERROR.stack_clear(),
-<<<<<<< HEAD
         end_of_iterator: (arg:any) => RUNTIME_ERROR.end_of_iterator(arg),
-=======
->>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
         assert_not_none: (arg: any, line: number, col: number) => RUNTIME_ERROR.assert_not_none(arg, line, col),
         print_num: (arg: number) => renderPrint(NUM, arg),
         print_bool: (arg: number) => renderPrint(BOOL, arg),
         print_none: (arg: number) => renderPrint(NONE, arg),
-<<<<<<< HEAD
-=======
-        print_str: (arg: number) => renderPrint(CLASS("str"), arg, memory),
->>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
@@ -74,20 +63,8 @@ function webStart() {
     ).then(bytes =>
       WebAssembly.instantiate(bytes, {...importObject, js: { mem: memory } })
     );
-<<<<<<< HEAD
 
     importObject.libset = setModule.instance.exports;
-=======
-    importObject.libset = setModule.instance.exports;
-
-    const stringModule = await fetch('string.wasm').then(response =>
-      response.arrayBuffer()
-    ).then(strings =>
-      WebAssembly.instantiate(strings, {...importObject, js: { mem: memory } })
-    );
-    importObject.libstring = stringModule.instance.exports;
-
->>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
     
     var repl = new BasicREPL(importObject);
 
