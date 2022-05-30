@@ -1,7 +1,6 @@
 import { assert, assertPrint, assertFail, assertTCFail, assertTC, assertParserFail } from "./asserts.test";
 import { NUM, BOOL, NONE, CLASS } from "./helpers.test"
 
-
 describe("Destructuring Tests", () => {
 
 assertTCFail("length mismatch - non Paren", `

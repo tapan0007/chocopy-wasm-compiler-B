@@ -1,27 +1,28 @@
-import {parser} from "lezer-python";
-import { TreeCursor} from "lezer-tree";
+import { parser } from "lezer-python";
+import { TreeCursor } from "lezer-tree";
 import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, SourceLocation, DestructureLHS, AssignTarget } from "./ast";
 import { NUM, BOOL, NONE, CLASS, TYPE_VAR } from "./utils";
 import { stringifyTree } from "./treeprinter";
-import { ParseError} from "./error_reporting";
+import { ParseError } from "./error_reporting";
+import { equalType } from "./type-check"
 
 // To get the line number from lezer tree to report errors
-function getSourceLocation(c : TreeCursor, s : string) : SourceLocation {
+function getSourceLocation(c: TreeCursor, s: string): SourceLocation {
   var source_lines = s.split("\n");
   var lines = s.substring(0, c.from).split("\n");
   var line: number = lines.length;
-  var previousLines = lines.slice(0,line-1).join("\n").length;
-  var srcCode =  source_lines[line-1]  
-  var column = s.substring(previousLines+1, c.to).length;  
+  var previousLines = lines.slice(0, line - 1).join("\n").length;
+  var srcCode = source_lines[line - 1]
+  var column = s.substring(previousLines + 1, c.to).length;
   if (line === 1) {
     column = column + 1;
   }
   return { line, column, srcCode }
 }
 
-export function traverseLiteral(c : TreeCursor, s : string) : Literal<SourceLocation> {
+export function traverseLiteral(c: TreeCursor, s: string): Literal<SourceLocation> {
   var location = getSourceLocation(c, s);
-  switch(c.type.name) {
+  switch (c.type.name) {
     case "Number":
       return {
         tag: "num",
@@ -34,6 +35,12 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal<SourceLoca
         value: s.substring(c.from, c.to) === "True",
         a: location,
       }
+    case "String":
+      return {
+        tag: "str",
+        value: s.substring(c.from + 1, c.to - 1),
+        a: location
+      }
     case "None":
       return {
         tag: "none",
@@ -42,7 +49,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal<SourceLoca
     case "CallExpression":
       const call_str = s.substring(c.from, c.to);
       const call_name = call_str.split('(')[0];
-      if(call_name == "TypeVar") {
+      if (call_name == "TypeVar") {
         return {
           tag: "TypeVar",
           a: location,
@@ -53,17 +60,24 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal<SourceLoca
   }
 }
 
-export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> {
+export function traverseExpr(c: TreeCursor, s: string): Expr<SourceLocation> {
   var location = getSourceLocation(c, s);
-  switch(c.type.name) {
+  switch (c.type.name) {
     case "Number":
     case "Boolean":
     case "None":
-      return { 
+      return {
         a: location,
-        tag: "literal", 
+        tag: "literal",
         value: traverseLiteral(c, s)
-      }      
+      }
+    case "String":
+      return {
+        a: location,
+        tag: "call",
+        name: "str",
+        arguments: [{ tag: "literal", value: traverseLiteral(c, s) }]
+      }
     case "VariableName":
       return {
         a: location,
@@ -81,7 +95,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
       const args = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
-      if(genericArgs) {
+      if (genericArgs) {
         const genArgsStr = genericArgs.toString();
         const commaSepArgs = genArgsStr.substring(1, genArgsStr.length - 1);
         const genTypes = commaSepArgs.split(',').map(s => typeFromString(s));
@@ -92,7 +106,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
           arguments: args,
           genericArgs: genTypes
         };
-      } 
+      }
 
       if (callExpr.tag === "lookup") {
         return {
@@ -104,9 +118,20 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
         }
       } else if (callExpr.tag === "id") {
         const callName = callExpr.name;
-        var expr : Expr<SourceLocation>;
-        expr = { a: location, tag: "call", name: callName, arguments: args};
-        return expr;  
+        var expr: Expr<SourceLocation>;
+        if (callName === "len") {
+          expr = {
+            a: location,
+            tag: "method-call",
+            obj: args[0],
+            method: "length",
+            arguments: [],
+          }
+        }
+        else {
+          expr = { a: location, tag: "call", name: callName, arguments: args };
+        }
+        return expr;
       } else {
         throw new ParseError("Unknown target while parsing assignment", location);
       }
@@ -114,12 +139,12 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
     case "ArrayExpression":
       c.firstChild(); //go into ArrayExpression, should be at [
 
-      var elements : Array<Expr<SourceLocation>> = [];
+      var elements: Array<Expr<SourceLocation>> = [];
       var firstIteration = true;
       //parse elements in list
-      while(c.nextSibling()) { //next element in list, if there is one
-        if(s.substring(c.from, c.to) === "]") {
-          if(firstIteration) { break; } //empty list
+      while (c.nextSibling()) { //next element in list, if there is one
+        if (s.substring(c.from, c.to) === "]") {
+          if (firstIteration) { break; } //empty list
           else {
             c.parent();
             throw new Error("Parse error at " + s.substring(c.from, c.to));
@@ -130,7 +155,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
         firstIteration = false;
       }
 
-      if(s.substring(c.from, c.to) !== "]") { //list doesn't have a closing bracket
+      if (s.substring(c.from, c.to) !== "]") { //list doesn't have a closing bracket
         c.parent();
         throw new Error("Parse error after " + s.substring(c.from, c.to));
       }
@@ -138,10 +163,10 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
       console.log(elements)
 
       c.parent(); //up from ArrayExpression
-      return { 
+      return {
         a: location,
-        tag: "listliteral", 
-        elements 
+        tag: "listliteral",
+        elements
       }
 
     case "BinaryExpression":
@@ -150,7 +175,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
       c.nextSibling(); // go to op
       var opStr = s.substring(c.from, c.to);
       var op;
-      switch(opStr) {
+      switch (opStr) {
         case "+":
           op = BinOp.Plus;
           break;
@@ -186,7 +211,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<SourceLocation> 
           break;
         case "is":
           op = BinOp.Is;
-          break; 
+          break;
         case "and":
           op = BinOp.And;
           break;
@@ -632,7 +657,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<SourceLocation> 
 }
 
 function typeFromString(s: string): Type {
-  switch(s) {
+  switch (s) {
     case "int": return NUM;
     case "bool": return BOOL;
     case "TypeVar": return TYPE_VAR;
@@ -810,7 +835,20 @@ export function traverseVarInit(c : TreeCursor, s : string) : VarInit<SourceLoca
   return { a: location, name, type, value }
 }
 
-export function traverseFunDef(c : TreeCursor, s : string) : FunDef<SourceLocation> {
+export function initToConsturct(init: VarInit<SourceLocation>): Stmt<SourceLocation> {
+  let val: Expr<SourceLocation> = { a: init.a, tag: "call", name: "str", arguments: [{ tag: "literal", value: init.value }] };
+  if (init.name.includes(".")) {
+    let strelems = init.name.split(".");
+    let ob: Expr<SourceLocation> = { a: init.a, tag: "id", name: strelems[0] };
+    let strfield = strelems[1]
+    return { a: init.a, tag: "field-assign", obj: ob, field: strfield, value: val }
+  }
+  else {
+    return { a: init.a, tag: "assign", name: init.name, value: val };
+  }
+}
+
+export function traverseFunDef(c: TreeCursor, s: string): FunDef<SourceLocation> {
   var location = getSourceLocation(c, s);
   c.firstChild();  // Focus on def
   c.nextSibling(); // Focus on name of function
@@ -828,23 +866,28 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<SourceLocati
   c.firstChild();  // Focus on :
   var inits = [];
   var body = [];
-  
+
   var hasChild = c.nextSibling();
 
-  while(hasChild) {
+  while (hasChild) {
     if (isVarInit(c, s)) {
-      inits.push(traverseVarInit(c, s));
+      let temp = traverseVarInit(c, s)
+      if (equalType(temp.type, CLASS("str"))) {
+        body.push(initToConsturct(temp))
+        temp.value = { tag: "none" };
+      }
+      inits.push(temp);
     } else {
       break;
     }
     hasChild = c.nextSibling();
   }
 
-  while(hasChild) {
+  while (hasChild) {
     body.push(traverseStmt(c, s));
     hasChild = c.nextSibling();
-  } 
-  
+  }
+
   // console.log("Before pop to body: ", c.type.name);
   c.parent();      // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
@@ -857,11 +900,11 @@ function traverseGenerics(c: TreeCursor, s: string): Array<string> {
 
   c.firstChild(); // focus on (
   c.nextSibling(); // focus on type
-  while(c.type.name !== ")") {
+  while (c.type.name !== ")") {
     const type = traverseType(c, s);
-    if(type.tag=="class" && type.name=="Generic" && type.genericArgs != undefined && type.genericArgs.length > 0) {
+    if (type.tag == "class" && type.name == "Generic" && type.genericArgs != undefined && type.genericArgs.length > 0) {
       type.genericArgs.forEach(ga => {
-        if(ga.tag=="class") {
+        if (ga.tag == "class") {
           typeVars.push(ga.name);
         } else {
           throw new Error("Expected TypeVar in Generic[] args");
@@ -876,10 +919,10 @@ function traverseGenerics(c: TreeCursor, s: string): Array<string> {
   return typeVars;
 }
 
-export function traverseClass(c : TreeCursor, s : string) : Class<SourceLocation> {
+export function traverseClass(c: TreeCursor, s: string): Class<SourceLocation> {
   var location = getSourceLocation(c, s);
-  const fields : Array<VarInit<SourceLocation>> = [];
-  const methods : Array<FunDef<SourceLocation>> = [];
+  const fields: Array<VarInit<SourceLocation>> = [];
+  const methods: Array<FunDef<SourceLocation>> = [];
   c.firstChild();
   c.nextSibling(); // Focus on class name
   const className = s.substring(c.from, c.to);
@@ -887,26 +930,37 @@ export function traverseClass(c : TreeCursor, s : string) : Class<SourceLocation
   const generics = traverseGenerics(c, s);
   c.nextSibling(); // Focus on body
   c.firstChild();  // Focus colon
-  while(c.nextSibling()) { // Focuses first field
+  var initBody: Array<Stmt<SourceLocation>> = []
+  while (c.nextSibling()) { // Focuses first field
     if (isVarInit(c, s)) {
-      fields.push(traverseVarInit(c, s));
+      let temp = traverseVarInit(c, s)
+      if (equalType(temp.type, CLASS("str"))) {
+        initBody.push(initToConsturct({ ...temp, name: "self" + "." + temp.name }))
+        temp.value = { tag: "none" };
+      }
+      fields.push(temp);
     } else if (isFunDef(c, s)) {
-      methods.push(traverseFunDef(c, s));
+      let tempfun = traverseFunDef(c, s)
+      if (tempfun.name == "__init__") {
+        tempfun.body = initBody.concat(tempfun.body)
+      }
+      methods.push(tempfun);
     } else {
       throw new ParseError(`Could not parse the body of class: ${className}`, location);
     }
-  } 
+  }
   c.parent();
   c.parent();
 
   if (!methods.find(method => method.name === "__init__")) {
-    if(generics.length > 0) {
+    if (generics.length > 0) {
       const genericTypes = generics.map(g => CLASS(g));
-      methods.push({ a: location, name: "__init__", parameters: 
-        [{ name: "self", type: CLASS(className, genericTypes) }], ret: NONE, inits: [], body: [] 
+      methods.push({
+        a: location, name: "__init__", parameters:
+          [{ name: "self", type: CLASS(className, genericTypes) }], ret: NONE, inits: [], body: []
       });
     } else {
-      methods.push({ a: location, name: "__init__", parameters: [{ name: "self", type: CLASS(className) }], ret: NONE, inits: [], body: [] });
+      methods.push({ a: location, name: "__init__", parameters: [{ name: "self", type: CLASS(className) }], ret: NONE, inits: [], body: initBody });
     }
   }
   return {
@@ -918,12 +972,12 @@ export function traverseClass(c : TreeCursor, s : string) : Class<SourceLocation
   };
 }
 
-export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit<SourceLocation>>, Array<FunDef<SourceLocation>>, Array<Class<SourceLocation>>] {
-  const inits : Array<VarInit<SourceLocation>> = [];
-  const funs : Array<FunDef<SourceLocation>> = [];
-  const classes : Array<Class<SourceLocation>> = [];
+export function traverseDefs(c: TreeCursor, s: string): [Array<VarInit<SourceLocation>>, Array<FunDef<SourceLocation>>, Array<Class<SourceLocation>>] {
+  const inits: Array<VarInit<SourceLocation>> = [];
+  const funs: Array<FunDef<SourceLocation>> = [];
+  const classes: Array<Class<SourceLocation>> = [];
 
-  while(true) {
+  while (true) {
     if (isVarInit(c, s)) {
       inits.push(traverseVarInit(c, s));
     } else if (isFunDef(c, s)) {
@@ -938,40 +992,45 @@ export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit<Source
 
 }
 
-export function isVarInit(c : TreeCursor, s : string) : Boolean {
+export function isVarInit(c: TreeCursor, s: string): Boolean {
   if (c.type.name === "AssignStatement") {
     c.firstChild(); // Focus on lhs
     c.nextSibling(); // go to : type
 
     const isVar = c.type.name as any === "TypeDef";
     c.parent();
-    return isVar;  
+    return isVar;
   } else {
     return false;
   }
 }
 
-export function isFunDef(c : TreeCursor, s : string) : Boolean {
+export function isFunDef(c: TreeCursor, s: string): Boolean {
   return c.type.name === "FunctionDefinition";
 }
 
-export function isClassDef(c : TreeCursor, s : string) : Boolean {
+export function isClassDef(c: TreeCursor, s: string): Boolean {
   return c.type.name === "ClassDefinition";
 }
 
-export function traverse(c : TreeCursor, s : string) : Program<SourceLocation> {
+export function traverse(c: TreeCursor, s: string): Program<SourceLocation> {
   var location = getSourceLocation(c, s);
-  switch(c.node.type.name) {
+  switch (c.node.type.name) {
     case "Script":
-      const inits : Array<VarInit<SourceLocation>> = [];
-      const funs : Array<FunDef<SourceLocation>> = [];
-      const classes : Array<Class<SourceLocation>> = [];
-      const stmts : Array<Stmt<SourceLocation>> = [];
+      const inits: Array<VarInit<SourceLocation>> = [];
+      const funs: Array<FunDef<SourceLocation>> = [];
+      const classes: Array<Class<SourceLocation>> = [];
+      const stmts: Array<Stmt<SourceLocation>> = [];
       var hasChild = c.firstChild();
 
-      while(hasChild) {
+      while (hasChild) {
         if (isVarInit(c, s)) {
-          inits.push(traverseVarInit(c, s));
+          let temp = traverseVarInit(c, s)
+          if (equalType(temp.type, CLASS("str"))) {
+            stmts.push(initToConsturct(temp))
+            temp.value = { tag: "none" };
+          }
+          inits.push(temp);
         } else if (isFunDef(c, s)) {
           funs.push(traverseFunDef(c, s));
         } else if (isClassDef(c, s)) {
@@ -982,10 +1041,10 @@ export function traverse(c : TreeCursor, s : string) : Program<SourceLocation> {
         hasChild = c.nextSibling();
       }
 
-      while(hasChild) {
+      while (hasChild) {
         stmts.push(traverseStmt(c, s));
         hasChild = c.nextSibling();
-      } 
+      }
       c.parent();
       return { a: location, funs, inits, classes, stmts };
     default:
@@ -993,7 +1052,7 @@ export function traverse(c : TreeCursor, s : string) : Program<SourceLocation> {
   }
 }
 
-export function parse(source : string) : Program<SourceLocation> {
+export function parse(source: string): Program<SourceLocation> {
   const t = parser.parse(source);
   const str = stringifyTree(t.cursor(), source, 0);
   return traverse(t.cursor(), source);

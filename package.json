@@ -6,7 +6,9 @@
   "scripts": {
     "build-web": "webpack && copy \"index.html\" \"build/\"",
     "build-parse": "tsc parsestart.ts --esModuleInterop --moduleResolution node --outDir cli/",
-    "test": "set TS_NODE_COMPILER_OPTIONS={\"module\": \"commonjs\" } && for FILE in tests/forloop-iterators.test.ts; do mocha -r ts-node/register $FILE; done",
+    "test": "set TS_NODE_COMPILER_OPTIONS={\"module\": \"commonjs\" } && for FILE in tests/*.test.ts; do mocha -r ts-node/register $FILE; done",
+    "test-set": "set TS_NODE_COMPILER_OPTIONS={\"module\": \"commonjs\" } && mocha -r ts-node/register tests/set.test.ts",
+    "test-string": "set TS_NODE_COMPILER_OPTIONS={\"module\": \"commonjs\" } && mocha -r ts-node/register tests/string.test.ts",
     "build": "tsc debuggerstart.ts  --downlevelIteration --esModuleInterop --moduleResolution node --outDir debugger/",
     "start": "node debugger/debuggerstart.js",
     "prestart": "npm run build"

@@ -1,7 +1,7 @@
 import { BasicREPL, ObjectField } from "./repl";
 import { Type, Value } from "./ast";
 
-function stringify(typ: Type, arg: any) : string {
+function stringify(typ: Type, arg: any, mem?:WebAssembly.Memory) : string {
   switch(typ.tag) {
     case "number":
       return (arg as number).toString();
@@ -10,6 +10,15 @@ function stringify(typ: Type, arg: any) : string {
     case "none":
       return "None";
     case "class":
+      if(TypeError.name === "str"){
+        var bytes = new Uint8Array(mem.buffer, arg, 4);
+        var length = ((bytes[0] & 0xFF) | (bytes[1] & 0xFF) << 8 | (bytes[2] & 0xFF) << 16 | (bytes[3] & 0xFF) << 24);
+        console.log(length); // length is correct
+        var char_bytes = new Uint8Array(mem.buffer, arg + 4, length);
+        console.log(char_bytes[0]);
+        var string = new TextDecoder('utf8').decode(char_bytes);
+        return string
+      }
       return typ.name;
   }
 }
@@ -131,11 +140,11 @@ export function renderResult(result : Value, objectTrackList: Array<ObjectField>
   }
 }
 
-export function renderPrint(typ: Type, arg : number) : any {
+export function renderPrint(typ: Type, arg : number, mem?:WebAssembly.Memory) : any {
   // console.log("Logging from WASM: ", arg);
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  elt.innerText = stringify(typ, arg);
+  elt.innerText = stringify(typ, arg, mem);
   return arg;
 }
 

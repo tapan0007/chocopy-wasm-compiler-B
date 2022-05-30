@@ -46,9 +46,12 @@ export function stackTrace() : string {
 
 function splitString() : Array<string> {
   return sourceCode.split("\n");
+<<<<<<< HEAD
 }
 
 export function end_of_iterator(hasnext:any) {
   if(hasnext == false)
     throw new Error(`StopIteration: End of iterator`);
+=======
+>>>>>>> 3f22c364e028f0fcea6324229c9878e4a0f698b3
 }
