@@ -224,4 +224,136 @@ This also tracks with how the inheritance team is implementing multiple inherita
 # Other additions to the codebase
 We plan to add a new pass before the type checker to create new classes for each specific type a generic class is created with. By the end of this pass, there should not be anything in the AST of type 'TypeVar', but instead specific types like 'int', 'class', etc. In the future for function calls, we might manually call tcExpr on arguments to figure out what types a generic function is using.
 
+# Milestone 2
 
+For milestone 2, I plan to scale down things a bit since my partner dropped the class.
+
+## Minor fixes
+First, I want to fix a few bugs I forgot to test:
+1. Support classes with multiple type vars (should work but there were some parsing bugs). As an example:
+```python
+T: TypeVar = TypeVar('T')
+U: TypeVar = TypeVar('U')
+def Box(Generic[T, U]):
+    x: T = ()
+    y: U = ()
+b: Box[int, bool] = None
+b = Box[int, bool]()
+print(b.x)
+print(b.y)
+```
+2. Monomorphize generic class constructor calls everywhere in code (before it was only in the global body). As an example:
+```python
+T: TypeVar = TypeVar('T')
+def Box(Generic[T]):
+    x: T = ()
+def create_box() -> Box[int]:
+    return Box[int]()
+b: Box[int] = None
+b = create_box()
+print(b.x)
+```
+
+3. Error when a type var that was not in the class definition is used by a class. As an example:
+```python
+T: TypeVar = TypeVar('T')
+U: TypeVar = TypeVar('U')
+def Box(Generic[T]):
+    val: U = ()
+```
+
+## Fields
+
+I also plan to implement generic fields, which you can see being used in the above tests. I plan to add a special universal initializer syntax (like in c++ but a different syntax) to initialize both classes and primitives. The syntax will look like: 
+```python
+x: T = ()
+```
+It will initialize bools to False, ints to 0, and classes to None
+
+Along with the above tests, here are a few tests I would like to pass for generic fields.
+1. Simple generic field
+```python
+T: TypeVar = TypeVar('T')
+def Box(Generic[T]):
+    x: T = ()
+b: Box[int] = None
+b = Box[int]()
+print(b.x)
+```
+Should print 0
+
+2. Simple generic field, two specializations
+```python
+T: TypeVar = TypeVar('T')
+def Box(Generic[T]):
+    x: T = ()
+b0: Box[int] = None
+b0 = Box[int]()
+print(b0.x)
+b1: Box[bool] = None
+b1 = Box[bool]()
+print(b1.x)
+```
+Should print 0, False
+
+3. Invalid specialization
+```python
+T: TypeVar = TypeVar('T')
+def Box(Generic[T]):
+    x: T = ()
+def Thing(object):
+    v: int = 0
+b: Box[Thing] = None
+b = Box[Thing]()
+print(b.x)
+```
+Should error and print something like "cannot print object"
+
+4. Invalid binop
+```python
+T: TypeVar = TypeVar('T')
+class Adder(Generic[T]):
+    x: T = 0
+    y: T = 0
+    def new(self: Adder[T], x: T, y: T) -> T:
+        self.x = x
+        self.y = y
+    def add(self: Adder[T]) -> T:
+       return self.x + self.y
+a: Adder[int] = None
+a = Adder[int]()
+print(a.add(1, 2))
+```
+Should print 3.
+
+5. Invalid binop
+```python
+T: TypeVar = TypeVar('T')
+class Adder(Generic[T]):
+    x: T = 0
+    y: T = 0
+    def new(self: Adder[T], x: T, y: T) -> T:
+        self.x = x
+        self.y = y
+    def add(self: Adder[T]) -> T:
+       return self.x + self.y
+a: Adder[bool] = None
+a = Adder[bool]()
+print(a.add(True, False))
+```
+Should error and print something like "invalid type for binop +"
+
+6. Invalid field assignment
+```python
+T: TypeVar = TypeVar('T')
+def Box(Generic[T]):
+    x: T = ()
+b: Box[int] = None
+b = Box[int]()
+b.x = False
+```
+Should error something like "Cannot assign bool to int"
+
+The previous tests testing generic objects as parameters and fields should of course also still work on top of these.
+
+If there's time, I also might consider implementing generic functions.
