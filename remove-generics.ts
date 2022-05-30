@@ -182,14 +182,14 @@ function specializeConstructorsInStmt(stmt: Stmt<SourceLocation>, genericsEnv: G
             return {...stmt, cond: newCond, body: newBody};
         }
         case "for" : {
-            const newVars = specializeConstructorsInExpr(stmt.vars, genericsEnv, classEnv);
+            //const newVars = specializeConstructorsInExpr(stmt.vars, genericsEnv, classEnv);
             const newIterable = specializeConstructorsInExpr(stmt.iterable, genericsEnv, classEnv);
             const newBody = stmt.body.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
             let newElseBody = null;
             if(stmt.elseBody) {
                 newElseBody = stmt.elseBody.map(s => specializeConstructorsInStmt(s, genericsEnv, classEnv));
             }
-            return {...stmt, vars: newVars, iterable: newIterable, body: newBody, elseBody: newElseBody};
+            return {...stmt, vars: stmt.vars, iterable: newIterable, body: newBody, elseBody: newElseBody};
         }
         default:
             return stmt;
