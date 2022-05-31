@@ -2,6 +2,7 @@ import * as AST from './ast';
 import * as IR from './ir';
 import { Type, SourceLocation } from './ast';
 import { GlobalEnv } from './compiler';
+import { equalType } from "./type-check"
 import { NUM, BOOL, NONE, CLASS } from "./utils";
 import { createModuleResolutionCache } from 'typescript';
 import { defaultMaxListeners } from 'events';
@@ -657,9 +658,14 @@ function flattenExprToExpr(e : AST.Expr<[Type, SourceLocation]>, blocks: Array<I
       const [oinits, ostmts, oval] = flattenExprToVal(e.obj, blocks, env);
       const [iinits, istmts, ival] = flattenExprToVal(e.index, blocks, env);
 
-      // if(equalType(e.a[0], CLASS("str"))){
-      //   return [[...oinits, ...iinits], [...ostmts, ...istmts], {tag: "call", name: "str$access", arguments: [oval, ival]} ]
-      // }
+      if(equalType(e.a[0], CLASS("str"))){
+        if("end" in e){
+          const [end_inits, end_stmts, end_val] = flattenExprToVal(e.end, blocks, env);
+          const [step_inits, step_stmts, step_val] = flattenExprToVal(e.steps, blocks, env);
+          return [[...oinits, ...iinits, ...end_inits, ...step_inits], [...ostmts, ...istmts, ...end_stmts, ...step_stmts], {a: e.a,tag: "call", name: "str$slicing", arguments: [oval, ival, end_val, step_val]} ]
+        }
+        return [[...oinits, ...iinits], [...ostmts, ...istmts], {a: e.a,tag: "call", name: "str$access", arguments: [oval, ival]} ]
+      }
       if (e.obj.a[0].tag === "list") { 
         const offsetValue: IR.Value<[Type, SourceLocation]> = listIndexOffsets(iinits, istmts, ival, oval);
         return [[...oinits, ...iinits], [...ostmts, ...istmts], {
