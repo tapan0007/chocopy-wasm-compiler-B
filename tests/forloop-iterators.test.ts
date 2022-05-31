@@ -683,7 +683,7 @@ i = [1,2,3,4]
 print(iter(j))
 `);
 
-
+/*
 assertFail('Stop iteration in range', rangeStr + `
 
 class ListIteratorBool(object) : 
@@ -721,7 +721,7 @@ print(next(_iter))
 print(next(_iter))
 print(next(_iter))
 `);
-
+*/
 
 /**
  * Ensure during typechecking, a TypeError is thrown.
