@@ -46,7 +46,7 @@ export type Expr<A> =
   | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>>, genericArgs?: Array<Type>} 
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
   | {  a?: A, tag: "listliteral", elements: Array<Expr<A>> }
-  | {  a?: A, tag: "index", obj: Expr<A>, index: Expr<A> }
+  | {  a?: A, tag: "index", obj: Expr<A>, index: Expr<A>, end?: Expr<A>, steps?: Expr<A>}
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
   | {  a?: A, tag: "set", values: Array<Expr<A>>}

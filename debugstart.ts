@@ -4,6 +4,7 @@ import { importObject, addLibs  } from "./tests/import-object.test";
 
 // entry point for debugging
 async function debug() {
+<<<<<<< HEAD
   var source = `
   a: [int] = None
   set_x: set[int] = None
@@ -17,6 +18,18 @@ async function debug() {
   // b : bool = True
   // l: [int] = None
   // set_1 = set([1, 2, 3])
+=======
+  var source =
+    `
+    s: str = "abcdefg"
+    print(s[:5])
+  `
+
+  const t = parser.parse(source);
+  console.log(stringifyTree(t.cursor(), source, null))
+  const ast = parse(source);
+  // console.log(JSON.stringify((ast), null, 2));
+>>>>>>> 93ca38406b0d8b2aee09c58d43ea030c77fba6b9
 
   // set_1.add(3)
   // set_1.add(3)

@@ -178,6 +178,18 @@ export function convertToIterableObject(env : GlobalTypeEnv, iterable: Expr<[Typ
   }
   return iterable;
 }
+export function builtinStringClass(env: GlobalTypeEnv): GlobalTypeEnv {
+  var strFields: Map<string, Type> = new Map();
+  var strMethods: Map<string, [Array<Type>, Type]> = new Map();
+  strMethods.set("__init__", [[{ tag: "class", name: "str" }, { tag: "class", name: "str" }], NONE])
+  strMethods.set("length", [[{ tag: "class", name: "str" }], NUM])
+  strMethods.set("lower", [[{ tag: "class", name: "str" }], CLASS("str")])
+  strMethods.set("upper", [[{ tag: "class", name: "str" }], CLASS("str")])
+  //TODO add all string methods here
+  strFields.set("length", { tag: "number" });
+  env.classes.set("str", [strFields, strMethods]);
+  return env;
+}
 
 
 export function augmentTEnv(env : GlobalTypeEnv, program : Program<SourceLocation>) : GlobalTypeEnv {
@@ -705,11 +717,19 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<S
         // }
         throw new TypeCheckError(`Index is of non-integer type \`${tIndex.a[0].tag}\``);
       }
-      // if (equalType(tObj.a[0], CLASS("str"))) {
-      //   return { a: [{ tag: "class", name: "str" }, expr.a], tag: "index", obj: tObj, index: tIndex };
-      // }
+      if (equalType(tObj.a[0], CLASS("str"))) {
+        if ("end" in expr){
+          var tEnd: Expr<[Type, SourceLocation]> = tcExpr(env, locals, expr.end);
+          var tStep: Expr<[Type, SourceLocation]> = tcExpr(env, locals, expr.steps);
+          if (tEnd.a[0].tag !== "number" || tStep.a[0].tag !== "number"){
+            throw new TypeCheckError(`Index is of non-integer type`, tObj.a[1]);
+          }
+          return { a: [CLASS("str"), expr.a], tag: "index", obj: tObj, index: tIndex, end: tEnd, steps: tStep };
+        }
+        return { a: [CLASS("str"), expr.a], tag: "index", obj: tObj, index: tIndex };
+      }
       if (tObj.a[0].tag === "list") {
-        return { ...expr, a: [tObj.a[0].type, expr.a], obj: tObj, index: tIndex };
+        return { tag: "index", a: [tObj.a[0].type, expr.a], obj: tObj, index: tIndex };
       }
       // if (tObj.a[0].tag === "tuple") {
       //   ...
